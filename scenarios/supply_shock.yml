@@ -1,0 +1,61 @@
+# 供给冲击场景
+description: "供给冲击场景 - 模拟石油危机或自然灾害等供给侧冲击对经济的影响"
+
+world:
+  seed: 456
+  grid:
+    rows: 80
+    cols: 80
+    cell_km: 2.5
+  generator:
+    sea_level: 0.55
+    mountain_ratio: 0.20
+    city_count: 12
+    road_density: 0.5
+    resource_richness: 0.7  # 资源相对稀缺
+  consistency:
+    min_agri_output_per_capita: 1600  # 更紧张的食物供给
+    water_connectivity_check: true
+    road_connectivity_check: true
+
+population:
+  N: 8000
+  age_structure: "default"
+  min_subsistence:
+    food: 2200
+    other: 1.0
+  discount_beta: 0.97  # 更高的储蓄倾向
+  risk_aversion: 0.8   # 更高的风险厌恶
+
+firms:
+  sectors: ["agri", "mining", "manu", "services"]
+  price_stickiness: 0.60  # 价格更容易调整
+  capital_depreciation: 0.08  # 更高的折旧率（设备老化快）
+  markup_elasticity: 0.10    # 加成调整较慢
+
+banks:
+  capital_ratio_floor: 0.10  # 标准资本要求
+  lgd: 0.50              # 更悲观的损失预期
+  pd_model: "conservative"
+  interbank_network: true
+
+policy:
+  pi_star: 0.025         # 稍高的通胀目标
+  r_star: 0.030          # 更高的自然利率
+  phi_pi: 2.0            # 对通胀反应强烈
+  phi_y: 0.3             # 对产出缺口反应较弱
+  phi_f: 0.4             # 更关注金融稳定
+  committee_size: 7
+
+runtime:
+  mode: "fixed"
+  T_end_days: 2190  # 6年，观察冲击的中期影响
+  checkpoint_every_days: 15  # 更频繁的快照
+  render_fps: 60
+  max_agents: 40000
+
+telemetry:
+  event_buffer_size: 12000
+  metrics_update_interval: 1
+  compress_snapshots: true
+  log_level: "INFO"

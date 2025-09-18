@@ -1,0 +1,61 @@
+# 基准经济场景
+description: "基准经济场景 - 稳定的经济环境，用作其他场景的比较基准"
+
+world:
+  seed: 42
+  grid:
+    rows: 100
+    cols: 100
+    cell_km: 2.0
+  generator:
+    sea_level: 0.52
+    mountain_ratio: 0.15
+    city_count: 15
+    road_density: 0.6
+    resource_richness: 1.0
+  consistency:
+    min_agri_output_per_capita: 1800
+    water_connectivity_check: true
+    road_connectivity_check: true
+
+population:
+  N: 10000
+  age_structure: "default"
+  min_subsistence:
+    food: 2200
+    other: 1.0
+  discount_beta: 0.96
+  risk_aversion: 0.7
+
+firms:
+  sectors: ["agri", "mining", "manu", "services"]
+  price_stickiness: 0.75
+  capital_depreciation: 0.06
+  markup_elasticity: 0.15
+
+banks:
+  capital_ratio_floor: 0.08
+  lgd: 0.45
+  pd_model: "default"
+  interbank_network: true
+
+policy:
+  pi_star: 0.02
+  r_star: 0.025
+  phi_pi: 1.5
+  phi_y: 0.5
+  phi_f: 0.3
+  committee_size: 7
+
+runtime:
+  mode: "fixed"
+  T_end_days: 3650  # 10年
+  checkpoint_every_days: 30
+  render_fps: 60
+  max_agents: 50000
+
+telemetry:
+  event_buffer_size: 10000
+  metrics_update_interval: 1
+  compress_snapshots: true
+  log_level: "INFO"

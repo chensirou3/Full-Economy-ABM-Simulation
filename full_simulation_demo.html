@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>ABM 完整模拟可视化</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a; 
+            color: white; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { 
+            text-align: center; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            border-radius: 10px; 
+            margin-bottom: 20px; 
+        }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .card { background: #2d2d2d; padding: 20px; border-radius: 10px; }
+        .controls { text-align: center; margin-bottom: 20px; }
+        .controls button { 
+            background: #4ade80; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            margin: 0 5px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        .controls button:hover { background: #22c55e; }
+        #mapCanvas { width: 100%; height: 400px; background: #111; border-radius: 8px; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .metric { background: #374151; padding: 15px; border-radius: 8px; text-align: center; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #60a5fa; }
+        .metric-label { font-size: 12px; color: #9ca3af; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 ABM 完整模拟可视化</h1>
+            <p>20,000人口 × 30年 × 实时运动 × 指标同步</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="toggleSimulation()">▶️ 开始/暂停</button>
+            <button onclick="jumpToYear()">⏭️ 跳转年份</button>
+            <button onclick="resetSimulation()">🔄 重置</button>
+            <label>
+                速度: <input type="range" id="speedSlider" min="1" max="20" value="5" onchange="updateSpeed()">
+                <span id="speedDisplay">5x</span>
+            </label>
+        </div>
+        
+        <div class="metrics" id="metricsPanel">
+            <div class="metric">
+                <div class="metric-value" id="currentYear">0</div>
+                <div class="metric-label">当前年份</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="population">20,000</div>
+                <div class="metric-label">人口</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="unemployment">5.0%</div>
+                <div class="metric-label">失业率</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="gdp">1.0B</div>
+                <div class="metric-label">GDP</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="inflation">2.0%</div>
+                <div class="metric-label">通胀率</div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>🗺️ 2D 世界地图 (实时运动)</h3>
+                <canvas id="mapCanvas" width="600" height="400"></canvas>
+                <p style="font-size: 12px; color: #9ca3af; margin-top: 10px;">
+                    绿点: 个人(移动) | 蓝点: 企业(静态) | 黄点: 银行 | 观察工作日聚集现象
+                </p>
+            </div>
+            
+            <div class="card">
+                <h3>📈 30年经济指标</h3>
+                <div id="economicChart" style="height: 400px;"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>📢 实时事件流</h3>
+            <div id="eventsPanel" style="height: 200px; overflow-y: auto; background: #111; padding: 10px; border-radius: 5px;">
+                等待事件数据...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let simulationData = null;
+        let isPlaying = false;
+        let currentStep = 0;
+        let speed = 5;
+        let updateInterval = null;
+        
+        // 初始化
+        window.onload = function() {
+            console.log('初始化可视化系统...');
+            startDataFetching();
+        };
+        
+        // 开始数据获取
+        function startDataFetching() {
+            updateInterval = setInterval(fetchSimulationData, 1000 / speed);
+        }
+        
+        // 获取模拟数据
+        async function fetchSimulationData() {
+            try {
+                const response = await fetch('http://localhost:8002/api/state');
+                if (response.ok) {
+                    simulationData = await response.json();
+                    updateVisualization();
+                }
+            } catch (error) {
+                console.log('使用模拟数据 (后端未连接)');
+                simulationData = generateMockData();
+                updateVisualization();
+            }
+        }
+        
+        // 生成模拟数据
+        function generateMockData() {
+            const day = currentStep * speed;
+            const year = Math.floor(day / 365);
+            
+            // 模拟代理数据
+            const agents = [];
+            for (let i = 0; i < 100; i++) {
+                const agentType = i < 80 ? 'person' : (i < 95 ? 'firm' : 'bank');
+                const baseX = (i % 10) * 6 + 5;
+                const baseY = Math.floor(i / 10) * 4 + 2;
+                
+                // 个人有运动，企业和银行基本静止
+                let x = baseX, y = baseY;
+                if (agentType === 'person') {
+                    const workHour = (day * 24) % 24;
+                    const isWorkday = (day % 7) < 5;
+                    
+                    if (isWorkday && workHour >= 8 && workHour <= 17) {
+                        // 工作时间聚集
+                        x = 45 + Math.sin(day * 0.1 + i) * 5;
+                        y = 15 + Math.cos(day * 0.1 + i) * 3;
+                    } else {
+                        // 其他时间分散
+                        x = baseX + Math.sin(day * 0.05 + i) * 8;
+                        y = baseY + Math.cos(day * 0.05 + i) * 6;
+                    }
+                }
+                
+                agents.push({
+                    agent_id: i,
+                    agent_type: agentType,
+                    position: { x: Math.max(1, Math.min(79, x)), y: Math.max(1, Math.min(19, y)) },
+                    age: 20 + (i % 60),
+                    employment_status: Math.random() > 0.05 ? 'employed' : 'unemployed'
+                });
+            }
+            
+            // 模拟指标
+            const unemployment = 0.05 + Math.sin(day / 365 * 2 * Math.PI) * 0.02;
+            const gdp = 1000000000 * (1 + day / 10950 * 0.5);
+            const inflation = 0.02 + Math.sin(day / 100) * 0.01;
+            
+            return {
+                current_day: day,
+                agents: agents,
+                metrics: {
+                    timestamp: day,
+                    kpis: {
+                        gdp: gdp,
+                        unemployment: unemployment,
+                        inflation: inflation,
+                        policy_rate: 0.025 + inflation * 1.5,
+                        population: 20000 - Math.floor(day / 365) * 50,
+                        average_age: 35 + day / 365 * 0.1
+                    }
+                }
+            };
+        }
+        
+        // 更新可视化
+        function updateVisualization() {
+            if (!simulationData) return;
+            
+            updateMetrics();
+            updateMap();
+            updateChart();
+            currentStep++;
+        }
+        
+        // 更新指标
+        function updateMetrics() {
+            const metrics = simulationData.metrics.kpis;
+            const year = Math.floor(simulationData.current_day / 365);
+            
+            document.getElementById('currentYear').textContent = year;
+            document.getElementById('population').textContent = metrics.population.toLocaleString();
+            document.getElementById('unemployment').textContent = (metrics.unemployment * 100).toFixed(1) + '%';
+            document.getElementById('gdp').textContent = (metrics.gdp / 1e9).toFixed(1) + 'B';
+            document.getElementById('inflation').textContent = (metrics.inflation * 100).toFixed(1) + '%';
+        }
+        
+        // 更新地图
+        function updateMap() {
+            const canvas = document.getElementById('mapCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 清空画布
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制网格
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 8; i++) {
+                const x = (i / 8) * canvas.width;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+                
+                const y = (i / 8) * canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // 绘制代理
+            const scaleX = canvas.width / 80;
+            const scaleY = canvas.height / 20;
+            
+            simulationData.agents.forEach(agent => {
+                const x = agent.position.x * scaleX;
+                const y = agent.position.y * scaleY;
+                
+                const colors = {
+                    'person': '#4ade80',
+                    'firm': '#3b82f6',
+                    'bank': '#f59e0b'
+                };
+                
+                const sizes = {
+                    'person': 2,
+                    'firm': 4,
+                    'bank': 6
+                };
+                
+                ctx.fillStyle = colors[agent.agent_type] || '#9ca3af';
+                ctx.beginPath();
+                ctx.arc(x, y, sizes[agent.agent_type] || 2, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+        
+        // 更新图表
+        function updateChart() {
+            // 这里可以添加Plotly图表更新逻辑
+            // 由于数据更新频繁，简化处理
+        }
+        
+        // 控制函数
+        function toggleSimulation() {
+            isPlaying = !isPlaying;
+            // 这里可以调用后端API
+            console.log('切换播放状态:', isPlaying);
+        }
+        
+        function jumpToYear() {
+            const year = prompt('跳转到第几年? (0-30)');
+            if (year && !isNaN(year)) {
+                const targetDay = parseInt(year) * 365;
+                console.log('跳转到第', year, '年');
+                // 这里可以调用后端API
+            }
+        }
+        
+        function resetSimulation() {
+            currentStep = 0;
+            console.log('重置模拟');
+        }
+        
+        function updateSpeed() {
+            const slider = document.getElementById('speedSlider');
+            speed = parseInt(slider.value);
+            document.getElementById('speedDisplay').textContent = speed + 'x';
+            
+            // 重新设置更新间隔
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = setInterval(fetchSimulationData, 1000 / speed);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+# 信贷繁荣场景
+description: "信贷繁荣场景 - 低利率环境导致信贷快速扩张，模拟金融周期"
+
+world:
+  seed: 123
+  grid:
+    rows: 120
+    cols: 120
+    cell_km: 2.0
+  generator:
+    sea_level: 0.50
+    mountain_ratio: 0.12
+    city_count: 20
+    road_density: 0.7
+    resource_richness: 1.2
+  consistency:
+    min_agri_output_per_capita: 1800
+    water_connectivity_check: true
+    road_connectivity_check: true
+
+population:
+  N: 15000
+  age_structure: "default"
+  min_subsistence:
+    food: 2200
+    other: 1.0
+  discount_beta: 0.95  # 更低的贴现率，更愿意借贷
+  risk_aversion: 0.6   # 更低的风险厌恶
+
+firms:
+  sectors: ["agri", "mining", "manu", "services", "finance", "construction"]
+  price_stickiness: 0.70  # 价格更灵活
+  capital_depreciation: 0.06
+  markup_elasticity: 0.20
+
+banks:
+  capital_ratio_floor: 0.06  # 更低的资本要求
+  lgd: 0.40              # 更乐观的损失预期
+  pd_model: "optimistic"
+  interbank_network: true
+
+policy:
+  pi_star: 0.02
+  r_star: 0.01           # 更低的自然利率
+  phi_pi: 1.2            # 对通胀反应较弱
+  phi_y: 0.8             # 对产出缺口反应较强
+  phi_f: 0.1             # 对金融稳定关注较少
+  committee_size: 7
+
+runtime:
+  mode: "fixed"
+  T_end_days: 5475  # 15年，观察完整的信贷周期
+  checkpoint_every_days: 30
+  render_fps: 60
+  max_agents: 75000
+
+telemetry:
+  event_buffer_size: 15000
+  metrics_update_interval: 1
+  compress_snapshots: true
+  log_level: "INFO"

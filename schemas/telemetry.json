@@ -1,0 +1,202 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ABM Simulation Telemetry Schema",
+  "version": "1.0.0",
+  "definitions": {
+    "EventType": {
+      "type": "string",
+      "enum": [
+        "firm.bankruptcy",
+        "bank.failure", 
+        "market.crash",
+        "unemployment.spike",
+        "inflation.shock",
+        "policy.interest_rate_change",
+        "policy.central_bank_vote",
+        "policy.fiscal_change",
+        "system.simulation_start",
+        "system.simulation_pause",
+        "system.checkpoint_created",
+        "agent.birth",
+        "agent.death",
+        "agent.migration",
+        "agent.job_change",
+        "market.clearing",
+        "market.price_update",
+        "market.supply_shock",
+        "market.demand_shock"
+      ]
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "number",
+          "description": "事件时间戳"
+        },
+        "event_type": {
+          "$ref": "#/definitions/EventType"
+        },
+        "actor_id": {
+          "oneOf": [
+            {"type": "integer"},
+            {"type": "string"},
+            {"type": "null"}
+          ],
+          "description": "相关代理ID"
+        },
+        "payload": {
+          "type": "object",
+          "description": "事件数据载荷"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "事件元数据"
+        }
+      },
+      "required": ["timestamp", "event_type", "payload", "metadata"],
+      "additionalProperties": false
+    },
+    "MetricsUpdate": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "number",
+          "description": "指标时间戳"
+        },
+        "kpis": {
+          "type": "object",
+          "properties": {
+            "gdp": {"type": "number"},
+            "unemployment": {"type": "number"},
+            "inflation": {"type": "number"},
+            "policy_rate": {"type": "number"},
+            "credit_growth": {"type": "number"},
+            "default_rate": {"type": "number"},
+            "total_agents": {"type": "integer"}
+          },
+          "additionalProperties": {"type": "number"}
+        },
+        "regional_data": {
+          "type": ["object", "null"],
+          "description": "区域数据"
+        },
+        "sectoral_data": {
+          "type": ["object", "null"], 
+          "description": "行业数据"
+        }
+      },
+      "required": ["timestamp", "kpis"],
+      "additionalProperties": false
+    },
+    "AgentState": {
+      "type": "object",
+      "properties": {
+        "agent_id": {"type": "integer"},
+        "agent_type": {
+          "type": "string",
+          "enum": ["person", "household", "firm", "bank", "central_bank"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive", "bankrupt", "deceased"]
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": {"type": "number"},
+            "y": {"type": "number"}
+          },
+          "required": ["x", "y"]
+        },
+        "balance_sheet": {
+          "type": "object",
+          "properties": {
+            "assets": {"type": "object"},
+            "liabilities": {"type": "object"},
+            "total_assets": {"type": "number"},
+            "total_liabilities": {"type": "number"},
+            "net_worth": {"type": "number"}
+          },
+          "required": ["assets", "liabilities", "total_assets", "total_liabilities", "net_worth"]
+        }
+      },
+      "required": ["agent_id", "agent_type", "status", "position", "balance_sheet"],
+      "additionalProperties": true
+    },
+    "WorldDelta": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "number",
+          "description": "更新时间戳"
+        },
+        "actors_delta": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/AgentState"},
+          "description": "代理状态变化"
+        },
+        "tiles_delta": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {"type": "integer"},
+              "y": {"type": "integer"},
+              "type": {"type": "string"},
+              "properties": {"type": "object"}
+            },
+            "required": ["x", "y", "type"]
+          },
+          "description": "地块状态变化"
+        }
+      },
+      "required": ["timestamp", "actors_delta", "tiles_delta"],
+      "additionalProperties": false
+    },
+    "WebSocketMessage": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "enum": [
+            "metrics.update",
+            "world.delta", 
+            "events.stream",
+            "policy.vote"
+          ]
+        },
+        "data": {
+          "oneOf": [
+            {"$ref": "#/definitions/MetricsUpdate"},
+            {"$ref": "#/definitions/WorldDelta"},
+            {"$ref": "#/definitions/Event"},
+            {"type": "object"}
+          ]
+        },
+        "timestamp": {
+          "type": "number"
+        }
+      },
+      "required": ["topic", "data", "timestamp"],
+      "additionalProperties": false
+    },
+    "SimulationStatus": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["stopped", "running", "paused", "stepping", "rewinding"]
+        },
+        "current_time": {"type": "integer"},
+        "speed": {"type": "number"},
+        "total_agents": {"type": "integer"},
+        "elapsed_real_time": {"type": "number"},
+        "steps_per_second": {"type": "number"},
+        "memory_usage_mb": {"type": "number"}
+      },
+      "required": ["state", "current_time", "speed", "total_agents", "elapsed_real_time", "steps_per_second", "memory_usage_mb"],
+      "additionalProperties": false
+    }
+  }
+}

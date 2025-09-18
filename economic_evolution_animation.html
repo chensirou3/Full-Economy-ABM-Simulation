@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>ABM 30年经济演化动画</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a; 
+            color: white; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { 
+            text-align: center; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            border-radius: 10px; 
+            margin-bottom: 20px; 
+        }
+        .controls { 
+            text-align: center; 
+            margin-bottom: 20px; 
+            padding: 15px; 
+            background: #2d2d2d; 
+            border-radius: 8px; 
+        }
+        .controls button { 
+            background: #4ade80; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            margin: 0 5px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-size: 14px; 
+        }
+        .controls button:hover { background: #22c55e; }
+        .controls button:disabled { background: #6b7280; cursor: not-allowed; }
+        .main-content { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .map-panel, .info-panel { 
+            background: #2d2d2d; 
+            border-radius: 10px; 
+            padding: 20px; 
+        }
+        #animationCanvas { 
+            width: 100%; 
+            height: 500px; 
+            background: #111; 
+            border-radius: 8px; 
+            border: 2px solid #374151; 
+        }
+        .metrics { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+        }
+        .metric { 
+            background: #374151; 
+            padding: 10px; 
+            border-radius: 5px; 
+            text-align: center; 
+        }
+        .metric-value { font-size: 18px; font-weight: bold; color: #60a5fa; }
+        .metric-label { font-size: 12px; color: #9ca3af; }
+        .events-log { 
+            height: 200px; 
+            overflow-y: auto; 
+            background: #111; 
+            padding: 10px; 
+            border-radius: 5px; 
+            font-size: 12px; 
+        }
+        .timeline { 
+            width: 100%; 
+            margin: 10px 0; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 ABM 30年经济演化动画</h1>
+            <p>20,000人口 × 动态机构创建 × 真实地图系统</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="playAnimation()">▶️ 播放</button>
+            <button onclick="pauseAnimation()">⏸️ 暂停</button>
+            <button onclick="resetAnimation()">🔄 重置</button>
+            <button onclick="jumpToYear()">⏭️ 跳转年份</button>
+            <label>
+                速度: <input type="range" id="speedSlider" min="1" max="50" value="10" onchange="updateSpeed()">
+                <span id="speedDisplay">10x</span>
+            </label>
+        </div>
+        
+        <div class="main-content">
+            <div class="map-panel">
+                <h3>🗺️ 世界地图 (30年演化)</h3>
+                <canvas id="animationCanvas" width="800" height="500"></canvas>
+                <input type="range" id="timelineSlider" class="timeline" min="0" max="360" value="0" onchange="jumpToFrame()">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #9ca3af;">
+                    <span>第1年</span>
+                    <span id="currentTimeDisplay">第0年</span>
+                    <span>第30年</span>
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <h3>📊 实时指标</h3>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="yearDisplay">0</div>
+                        <div class="metric-label">年份</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="populationDisplay">20,000</div>
+                        <div class="metric-label">人口</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="firmsDisplay">0</div>
+                        <div class="metric-label">企业数</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="banksDisplay">0</div>
+                        <div class="metric-label">银行数</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="unemploymentDisplay">5.0%</div>
+                        <div class="metric-label">失业率</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="gdpDisplay">1.0B</div>
+                        <div class="metric-label">GDP</div>
+                    </div>
+                </div>
+                
+                <h4>📢 重要事件</h4>
+                <div id="eventsLog" class="events-log">
+                    等待加载动画数据...
+                </div>
+                
+                <h4>🎯 系统特色</h4>
+                <div style="font-size: 12px; line-height: 1.5;">
+                    <p>✅ <strong>动态机构创建</strong>: 企业和银行由个人根据市场需求创建</p>
+                    <p>✅ <strong>真实地图系统</strong>: 地形影响移动和经济活动</p>
+                    <p>✅ <strong>距离概念</strong>: 通勤范围、服务半径、运输成本</p>
+                    <p>✅ <strong>完整生命周期</strong>: 机构创建→运营→可能倒闭</p>
+                    <p>✅ <strong>空间经济学</strong>: 位置影响商业决策</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let animationData = null;
+        let currentFrame = 0;
+        let isPlaying = false;
+        let playSpeed = 10;
+        let playInterval = null;
+        
+        // 画布
+        const canvas = document.getElementById('animationCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 加载动画数据
+        window.onload = async function() {
+            console.log('加载30年动画数据...');
+            
+            try {
+                const response = await fetch('./animation_data.json');
+                animationData = await response.json();
+                
+                console.log('动画数据加载成功:', animationData.frames.length, '帧');
+                
+                // 设置时间轴
+                document.getElementById('timelineSlider').max = animationData.frames.length - 1;
+                
+                // 渲染第一帧
+                renderFrame(0);
+                
+                // 显示数据统计
+                showDataSummary();
+                
+            } catch (error) {
+                console.error('加载动画数据失败:', error);
+                document.getElementById('eventsLog').innerHTML = '❌ 动画数据加载失败<br>请确保运行了模拟并生成了 animation_data.json';
+            }
+        };
+        
+        function showDataSummary() {
+            const summary = `
+                📊 动画数据统计:<br>
+                • 总帧数: ${animationData.frames.length}<br>
+                • 模拟天数: ${animationData.metadata.total_days}<br>
+                • 人口规模: ${animationData.metadata.population_size.toLocaleString()}<br>
+                • 地图尺寸: ${animationData.metadata.map_size[0]}×${animationData.metadata.map_size[1]}<br>
+                • 最终企业: ${animationData.final_stats.firms_created}<br>
+                • 最终银行: ${animationData.final_stats.banks_created}<br>
+                <br>🎬 准备播放30年经济演化动画...
+            `;
+            
+            document.getElementById('eventsLog').innerHTML = summary;
+        }
+        
+        function renderFrame(frameIndex) {
+            if (!animationData || frameIndex >= animationData.frames.length) return;
+            
+            const frame = animationData.frames[frameIndex];
+            currentFrame = frameIndex;
+            
+            // 清空画布
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制地形
+            drawTerrain();
+            
+            // 绘制代理
+            drawAgents(frame.agents);
+            
+            // 更新UI
+            updateUI(frame);
+        }
+        
+        function drawTerrain() {
+            const scaleX = canvas.width / 80;
+            const scaleY = canvas.height / 20;
+            
+            // 绘制地形背景
+            for (let y = 0; y < 20; y++) {
+                for (let x = 0; x < 80; x++) {
+                    const terrain = animationData.terrain_map[`${x},${y}`] || 'plain';
+                    
+                    const colors = {
+                        'ocean': '#1e40af', 'mountain': '#78716c', 'hill': '#a3a3a3',
+                        'plain': '#22c55e', 'forest': '#166534', 'city': '#fbbf24',
+                        'river': '#0ea5e9'
+                    };
+                    
+                    ctx.fillStyle = colors[terrain] || '#374151';
+                    ctx.fillRect(x * scaleX, y * scaleY, scaleX, scaleY);
+                }
+            }
+            
+            // 绘制城市标记
+            animationData.cities.forEach(city => {
+                const x = city[0] * scaleX;
+                const y = city[1] * scaleY;
+                
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            });
+        }
+        
+        function drawAgents(agents) {
+            const scaleX = canvas.width / 80;
+            const scaleY = canvas.height / 20;
+            
+            agents.forEach(agent => {
+                const x = agent.x * scaleX;
+                const y = agent.y * scaleY;
+                
+                const colors = {
+                    'person': '#4ade80',
+                    'firm': '#3b82f6', 
+                    'bank': '#f59e0b'
+                };
+                
+                const sizes = {
+                    'person': 2,
+                    'firm': 4,
+                    'bank': 6
+                };
+                
+                ctx.fillStyle = colors[agent.type] || '#9ca3af';
+                ctx.beginPath();
+                ctx.arc(x, y, sizes[agent.type] || 2, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // 企业和银行显示ID
+                if (agent.type === 'firm' || agent.type === 'bank') {
+                    ctx.fillStyle = 'white';
+                    ctx.font = '8px Arial';
+                    ctx.fillText(agent.id.toString().slice(-2), x + 5, y + 3);
+                }
+            });
+        }
+        
+        function updateUI(frame) {
+            // 更新指标显示
+            document.getElementById('yearDisplay').textContent = Math.floor(frame.year);
+            document.getElementById('populationDisplay').textContent = frame.metrics.population.toLocaleString();
+            document.getElementById('firmsDisplay').textContent = frame.metrics.firms;
+            document.getElementById('banksDisplay').textContent = frame.metrics.banks;
+            document.getElementById('unemploymentDisplay').textContent = (frame.metrics.unemployment * 100).toFixed(1) + '%';
+            document.getElementById('gdpDisplay').textContent = (frame.metrics.gdp / 1e9).toFixed(1) + 'B';
+            
+            // 更新时间显示
+            document.getElementById('currentTimeDisplay').textContent = `第${Math.floor(frame.year)}年`;
+            document.getElementById('timelineSlider').value = currentFrame;
+            
+            // 显示当前事件
+            if (frame.events && frame.events.length > 0) {
+                const eventsHtml = frame.events.map(event => {
+                    const eventTypes = {
+                        'firm_created': '🏢 企业创建',
+                        'bank_created': '🏦 银行创建',
+                        'firm_closed': '💥 企业倒闭'
+                    };
+                    
+                    return `<div style="margin-bottom: 5px;">
+                        <strong>${eventTypes[event.type] || event.type}</strong><br>
+                        第${Math.floor(event.day / 365)}年 - ${JSON.stringify(event).slice(0, 100)}...
+                    </div>`;
+                }).join('');
+                
+                document.getElementById('eventsLog').innerHTML = eventsHtml;
+            }
+        }
+        
+        function playAnimation() {
+            if (isPlaying) return;
+            
+            isPlaying = true;
+            playInterval = setInterval(() => {
+                if (currentFrame < animationData.frames.length - 1) {
+                    currentFrame++;
+                    renderFrame(currentFrame);
+                } else {
+                    pauseAnimation();
+                }
+            }, 1000 / playSpeed);
+        }
+        
+        function pauseAnimation() {
+            isPlaying = false;
+            if (playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+            }
+        }
+        
+        function resetAnimation() {
+            pauseAnimation();
+            currentFrame = 0;
+            renderFrame(0);
+        }
+        
+        function jumpToYear() {
+            const year = prompt('跳转到第几年? (0-30)');
+            if (year && !isNaN(year)) {
+                const targetYear = parseInt(year);
+                const targetFrame = Math.floor((targetYear / 30) * (animationData.frames.length - 1));
+                currentFrame = Math.max(0, Math.min(animationData.frames.length - 1, targetFrame));
+                renderFrame(currentFrame);
+            }
+        }
+        
+        function jumpToFrame() {
+            const slider = document.getElementById('timelineSlider');
+            currentFrame = parseInt(slider.value);
+            renderFrame(currentFrame);
+        }
+        
+        function updateSpeed() {
+            const slider = document.getElementById('speedSlider');
+            playSpeed = parseInt(slider.value);
+            document.getElementById('speedDisplay').textContent = playSpeed + 'x';
+            
+            if (isPlaying) {
+                pauseAnimation();
+                playAnimation();
+            }
+        }
+    </script>
+</body>
+</html>

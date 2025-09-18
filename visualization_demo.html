@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABM 经济体模拟 - 可视化演示</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background-color: #2d2d2d;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card h3 {
+            margin-top: 0;
+            color: #4ade80;
+            border-bottom: 2px solid #4ade80;
+            padding-bottom: 10px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #60a5fa;
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+        
+        .chart-container {
+            height: 400px;
+            margin: 20px 0;
+        }
+        
+        .map-container {
+            height: 500px;
+            background-color: #111;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .agent-dot {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        
+        .person { background-color: #4ade80; width: 3px; height: 3px; }
+        .firm { background-color: #3b82f6; width: 5px; height: 5px; }
+        .bank { background-color: #f59e0b; width: 6px; height: 6px; }
+        .central_bank { background-color: #ef4444; width: 8px; height: 8px; }
+        
+        .loading {
+            text-align: center;
+            color: #9ca3af;
+            padding: 40px;
+        }
+        
+        .status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 ABM 经济体模拟系统 - 可视化演示</h1>
+            <p>20,000人口 × 30年经济演化可视化</p>
+        </div>
+        
+        <!-- 核心指标 -->
+        <div id="metrics" class="metrics-grid">
+            <div class="loading">正在加载指标数据...</div>
+        </div>
+        
+        <div class="grid">
+            <!-- 2D 世界地图 -->
+            <div class="card">
+                <h3>🗺️ 2D 世界地图</h3>
+                <div id="worldMap" class="map-container">
+                    <div class="loading">正在加载代理位置...</div>
+                </div>
+                <p style="font-size: 12px; color: #9ca3af; margin-top: 10px;">
+                    绿点: 个人 | 蓝点: 企业 | 黄点: 银行 | 红点: 央行
+                </p>
+            </div>
+            
+            <!-- 经济指标图表 -->
+            <div class="card">
+                <h3>📈 经济指标趋势</h3>
+                <div id="economicChart" class="chart-container"></div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <!-- 人口统计 -->
+            <div class="card">
+                <h3>👥 人口统计</h3>
+                <div id="populationChart" class="chart-container"></div>
+            </div>
+            
+            <!-- 事件时间线 -->
+            <div class="card">
+                <h3>📢 重要事件时间线</h3>
+                <div id="eventsTimeline" style="max-height: 400px; overflow-y: auto;">
+                    <div class="loading">正在加载事件数据...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="status" class="status">
+        正在连接数据源...
+    </div>
+
+    <script>
+        // 可视化数据
+        let visualizationData = null;
+        
+        // 加载数据
+        async function loadData() {
+            try {
+                // 尝试从本地文件加载
+                const response = await fetch('./backend/visualization_data.json');
+                if (response.ok) {
+                    visualizationData = await response.json();
+                } else {
+                    // 如果本地文件不可用，生成模拟数据
+                    visualizationData = generateMockData();
+                }
+                
+                updateStatus('数据加载成功');
+                renderAll();
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                updateStatus('使用模拟数据');
+                visualizationData = generateMockData();
+                renderAll();
+            }
+        }
+        
+        // 生成模拟数据
+        function generateMockData() {
+            const agents = [];
+            const metrics = [];
+            const events = [];
+            
+            // 生成代理数据
+            for (let i = 0; i < 1000; i++) {
+                agents.push({
+                    agent_id: i,
+                    agent_type: i < 800 ? 'person' : (i < 950 ? 'firm' : (i < 995 ? 'bank' : 'central_bank')),
+                    position: {
+                        x: Math.random() * 80,
+                        y: Math.random() * 80
+                    },
+                    balance_sheet: {
+                        net_worth: Math.random() * 100000
+                    }
+                });
+            }
+            
+            // 生成指标数据
+            for (let i = 0; i < 360; i++) {
+                const time = i * 30;
+                metrics.push({
+                    timestamp: time,
+                    kpis: {
+                        gdp: 1000000 + i * 1000 + Math.random() * 50000,
+                        unemployment: 0.05 + Math.sin(i / 50) * 0.02 + Math.random() * 0.01,
+                        inflation: 0.02 + Math.sin(i / 30) * 0.01 + Math.random() * 0.005,
+                        policy_rate: 0.025 + Math.sin(i / 40) * 0.01 + Math.random() * 0.002,
+                    }
+                });
+            }
+            
+            return { agents, metrics, events, metadata: { population: 20000 } };
+        }
+        
+        // 渲染所有可视化
+        function renderAll() {
+            renderMetrics();
+            renderWorldMap();
+            renderEconomicChart();
+            renderPopulationChart();
+            renderEventsTimeline();
+        }
+        
+        // 渲染核心指标
+        function renderMetrics() {
+            const latest = visualizationData.metrics[visualizationData.metrics.length - 1];
+            const metricsHtml = `
+                <div class="metric-card">
+                    <div class="metric-value">${(latest.kpis.gdp / 1000000).toFixed(1)}M</div>
+                    <div class="metric-label">GDP (百万)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${(latest.kpis.unemployment * 100).toFixed(1)}%</div>
+                    <div class="metric-label">失业率</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${(latest.kpis.inflation * 100).toFixed(1)}%</div>
+                    <div class="metric-label">通胀率</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${(latest.kpis.policy_rate * 100).toFixed(2)}%</div>
+                    <div class="metric-label">政策利率</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${visualizationData.metadata.population.toLocaleString()}</div>
+                    <div class="metric-label">总人口</div>
+                </div>
+            `;
+            document.getElementById('metrics').innerHTML = metricsHtml;
+        }
+        
+        // 渲染2D世界地图
+        function renderWorldMap() {
+            const mapContainer = document.getElementById('worldMap');
+            mapContainer.innerHTML = '';
+            
+            const mapWidth = mapContainer.offsetWidth;
+            const mapHeight = mapContainer.offsetHeight;
+            
+            // 渲染代理
+            visualizationData.agents.slice(0, 500).forEach(agent => {
+                const dot = document.createElement('div');
+                dot.className = `agent-dot ${agent.agent_type}`;
+                
+                const x = (agent.position.x / 80) * mapWidth;
+                const y = (agent.position.y / 80) * mapHeight;
+                
+                dot.style.left = x + 'px';
+                dot.style.top = y + 'px';
+                dot.title = `${agent.agent_type} #${agent.agent_id}`;
+                
+                mapContainer.appendChild(dot);
+            });
+            
+            updateStatus(`地图渲染完成: ${Math.min(500, visualizationData.agents.length)} 个代理`);
+        }
+        
+        // 渲染经济指标图表
+        function renderEconomicChart() {
+            const timeLabels = visualizationData.metrics.map(m => `第${Math.floor(m.timestamp/365)}年`);
+            
+            const traces = [
+                {
+                    x: timeLabels,
+                    y: visualizationData.metrics.map(m => m.kpis.gdp / 1000000),
+                    name: 'GDP (百万)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#10b981' }
+                },
+                {
+                    x: timeLabels,
+                    y: visualizationData.metrics.map(m => m.kpis.unemployment * 100),
+                    name: '失业率 (%)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    yaxis: 'y2',
+                    line: { color: '#ef4444' }
+                },
+                {
+                    x: timeLabels,
+                    y: visualizationData.metrics.map(m => m.kpis.inflation * 100),
+                    name: '通胀率 (%)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    yaxis: 'y2',
+                    line: { color: '#f59e0b' }
+                }
+            ];
+            
+            const layout = {
+                title: '30年经济指标演化',
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#ffffff' },
+                xaxis: { 
+                    title: '时间',
+                    color: '#9ca3af',
+                    gridcolor: '#374151'
+                },
+                yaxis: { 
+                    title: 'GDP (百万)',
+                    color: '#9ca3af',
+                    gridcolor: '#374151'
+                },
+                yaxis2: {
+                    title: '百分比 (%)',
+                    overlaying: 'y',
+                    side: 'right',
+                    color: '#9ca3af'
+                },
+                legend: { 
+                    x: 0,
+                    y: 1,
+                    bgcolor: 'rgba(0,0,0,0.5)'
+                }
+            };
+            
+            Plotly.newPlot('economicChart', traces, layout, {responsive: true});
+        }
+        
+        // 渲染人口统计图表
+        function renderPopulationChart() {
+            // 按代理类型统计
+            const agentCounts = {};
+            visualizationData.agents.forEach(agent => {
+                agentCounts[agent.agent_type] = (agentCounts[agent.agent_type] || 0) + 1;
+            });
+            
+            const trace = {
+                labels: Object.keys(agentCounts),
+                values: Object.values(agentCounts),
+                type: 'pie',
+                marker: {
+                    colors: ['#4ade80', '#3b82f6', '#f59e0b', '#ef4444']
+                }
+            };
+            
+            const layout = {
+                title: '代理类型分布',
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#ffffff' },
+                showlegend: true,
+                legend: { 
+                    bgcolor: 'rgba(0,0,0,0.5)'
+                }
+            };
+            
+            Plotly.newPlot('populationChart', [trace], layout, {responsive: true});
+        }
+        
+        // 渲染事件时间线
+        function renderEventsTimeline() {
+            const eventsContainer = document.getElementById('eventsTimeline');
+            
+            if (!visualizationData.events || visualizationData.events.length === 0) {
+                eventsContainer.innerHTML = '<p style="text-align: center; color: #9ca3af;">暂无事件数据</p>';
+                return;
+            }
+            
+            const eventsHtml = visualizationData.events.slice(0, 20).map(event => {
+                const year = Math.floor(event.timestamp / 365);
+                const eventTypeColors = {
+                    'policy.interest_rate_change': '#3b82f6',
+                    'firm.bankruptcy': '#ef4444',
+                    'unemployment.spike': '#f59e0b',
+                    'system.checkpoint_created': '#10b981'
+                };
+                
+                const color = eventTypeColors[event.event_type] || '#9ca3af';
+                
+                return `
+                    <div style="padding: 10px; border-left: 3px solid ${color}; margin-bottom: 10px; background-color: rgba(255,255,255,0.05);">
+                        <div style="font-weight: bold;">第${year}年 - ${getEventTypeLabel(event.event_type)}</div>
+                        <div style="font-size: 12px; color: #9ca3af; margin-top: 5px;">
+                            ${JSON.stringify(event.payload)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            eventsContainer.innerHTML = eventsHtml;
+        }
+        
+        // 获取事件类型标签
+        function getEventTypeLabel(type) {
+            const labels = {
+                'policy.interest_rate_change': '利率调整',
+                'firm.bankruptcy': '企业破产',
+                'unemployment.spike': '失业激增',
+                'system.checkpoint_created': '检查点创建'
+            };
+            return labels[type] || type;
+        }
+        
+        // 更新状态
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', () => {
+            updateStatus('正在加载可视化数据...');
+            loadData();
+        });
+    </script>
+</head>
+<body>
+    <!-- 内容由JavaScript动态生成 -->
+</body>
+</html>

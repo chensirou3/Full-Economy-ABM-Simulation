@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABM 30年经济演化动画</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+        }
+        
+        .controls button {
+            background-color: #4ade80;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .controls button:hover {
+            background-color: #22c55e;
+        }
+        
+        .controls button:disabled {
+            background-color: #6b7280;
+            cursor: not-allowed;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+        
+        .map-panel {
+            background-color: #2d2d2d;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .info-panel {
+            background-color: #2d2d2d;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        #animationCanvas {
+            width: 100%;
+            height: 400px;
+            background-color: #111;
+            border-radius: 8px;
+            border: 2px solid #374151;
+        }
+        
+        .timeline {
+            width: 100%;
+            margin: 15px 0;
+            height: 6px;
+            background: #374151;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        .timeline::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4ade80;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .metric {
+            background-color: #374151;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #60a5fa;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+        
+        .events-log {
+            height: 180px;
+            overflow-y: auto;
+            background-color: #111;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 10px;
+            background-color: #374151;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #9ca3af;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 ABM 30年经济演化动画</h1>
+            <p>20,000人口 × 动态机构创建 × 真实地图系统</p>
+        </div>
+        
+        <div class="status" id="statusDisplay">
+            正在加载动画数据...
+        </div>
+        
+        <div class="controls">
+            <button id="playBtn" onclick="playAnimation()" disabled>▶️ 播放</button>
+            <button id="pauseBtn" onclick="pauseAnimation()" disabled>⏸️ 暂停</button>
+            <button onclick="resetAnimation()">🔄 重置</button>
+            <button onclick="jumpToYear()">⏭️ 跳转年份</button>
+            <label style="margin-left: 20px;">
+                速度: <input type="range" id="speedSlider" min="1" max="30" value="5">
+                <span id="speedDisplay">5x</span>
+            </label>
+        </div>
+        
+        <div class="main-content">
+            <div class="map-panel">
+                <h3>🗺️ 经济地图演化</h3>
+                <canvas id="animationCanvas" width="800" height="400"></canvas>
+                <input type="range" id="timelineSlider" class="timeline" min="0" max="365" value="0" onchange="jumpToFrame()">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #9ca3af; margin-top: 5px;">
+                    <span>第1年</span>
+                    <span id="currentTimeDisplay">第0年</span>
+                    <span>第30年</span>
+                </div>
+                <div style="font-size: 12px; color: #9ca3af; margin-top: 10px;">
+                    🟢 个人 🔵 企业(动态创建) 🟡 银行(动态创建) | 🌊 海洋 ⛰️ 山脉 🏙️ 城市
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <h3>📊 实时指标</h3>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="yearDisplay">0</div>
+                        <div class="metric-label">年份</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="populationDisplay">20,000</div>
+                        <div class="metric-label">人口</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="firmsDisplay">0</div>
+                        <div class="metric-label">企业数</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="banksDisplay">0</div>
+                        <div class="metric-label">银行数</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="unemploymentDisplay">5.0%</div>
+                        <div class="metric-label">失业率</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="gdpDisplay">1.0B</div>
+                        <div class="metric-label">GDP</div>
+                    </div>
+                </div>
+                
+                <h4>📢 重要事件</h4>
+                <div id="eventsLog" class="events-log">
+                    等待动画数据加载...
+                </div>
+                
+                <h4>🎯 观察要点</h4>
+                <div style="font-size: 12px; line-height: 1.5; color: #d1d5db;">
+                    <p>• <strong>第1-6年</strong>: 观察企业快速创建期</p>
+                    <p>• <strong>第7年</strong>: 银行开始在各城市出现</p>
+                    <p>• <strong>第8-10年</strong>: 企业整合和倒闭期</p>
+                    <p>• <strong>第11-30年</strong>: 经济稳定和周期性</p>
+                    <p>• <strong>地理分布</strong>: 机构不再集中，而是分散各地</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let animationData = null;
+        let currentFrame = 0;
+        let isPlaying = false;
+        let playSpeed = 5;
+        let playInterval = null;
+        let dataLoaded = false;
+        
+        const canvas = document.getElementById('animationCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 初始化
+        window.onload = function() {
+            loadAnimationData();
+        };
+        
+        // 加载动画数据
+        async function loadAnimationData() {
+            try {
+                updateStatus('正在加载动画数据... (16MB)');
+                
+                const response = await fetch('./animation_data.json');
+                if (!response.ok) {
+                    throw new Error('无法加载动画数据文件');
+                }
+                
+                updateStatus('正在解析动画数据...');
+                animationData = await response.json();
+                
+                console.log('动画数据加载成功:', animationData.frames.length, '帧');
+                
+                // 设置UI
+                document.getElementById('timelineSlider').max = animationData.frames.length - 1;
+                document.getElementById('playBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = false;
+                
+                dataLoaded = true;
+                updateStatus(`✅ 数据加载完成 - ${animationData.frames.length}帧动画准备就绪`);
+                
+                // 渲染第一帧
+                renderFrame(0);
+                
+                // 显示数据摘要
+                showInitialSummary();
+                
+            } catch (error) {
+                console.error('加载失败:', error);
+                updateStatus('❌ 数据加载失败 - 使用演示数据');
+                
+                // 生成演示数据
+                generateDemoData();
+                dataLoaded = true;
+                renderFrame(0);
+            }
+        }
+        
+        function generateDemoData() {
+            console.log('生成演示动画数据...');
+            
+            const frames = [];
+            
+            // 生成30年的演示数据
+            for (let month = 0; month < 360; month++) {
+                const year = month / 12;
+                const day = month * 30;
+                
+                // 模拟代理数据
+                const agents = [];
+                
+                // 个人代理 (移动)
+                for (let i = 0; i < 50; i++) {
+                    const baseX = (i % 10) * 8 + 5;
+                    const baseY = Math.floor(i / 10) * 3 + 2;
+                    
+                    // 工作日聚集效应
+                    const hour = (day * 24) % 24;
+                    const isWorkday = (day % 7) < 5;
+                    
+                    let x = baseX, y = baseY;
+                    if (isWorkday && hour >= 8 && hour <= 17) {
+                        // 向商业中心聚集
+                        x = 60 + Math.sin(day * 0.1 + i) * 3;
+                        y = 10 + Math.cos(day * 0.1 + i) * 2;
+                    } else {
+                        // 分散活动
+                        x = baseX + Math.sin(day * 0.05 + i) * 5;
+                        y = baseY + Math.cos(day * 0.05 + i) * 3;
+                    }
+                    
+                    agents.push({
+                        id: 100000 + i,
+                        type: 'person',
+                        x: Math.max(1, Math.min(79, x)),
+                        y: Math.max(1, Math.min(19, y)),
+                        employed: Math.random() > 0.05
+                    });
+                }
+                
+                // 企业代理 (动态创建)
+                const numFirms = Math.min(20, Math.floor(year * 0.8) + Math.floor(Math.sin(year) * 3));
+                for (let i = 0; i < numFirms; i++) {
+                    agents.push({
+                        id: 10000 + i,
+                        type: 'firm',
+                        x: 20 + (i % 8) * 7 + Math.random() * 2,
+                        y: 8 + Math.floor(i / 8) * 4 + Math.random() * 2,
+                        sector: ['agriculture', 'manufacturing', 'services'][i % 3],
+                        employees: Math.floor(Math.random() * 10) + 1
+                    });
+                }
+                
+                // 银行代理 (在城市中创建)
+                const numBanks = Math.min(5, Math.floor((year - 5) * 0.2));
+                if (numBanks > 0) {
+                    const cities = [[15, 8], [35, 10], [55, 7], [25, 15], [45, 5]];
+                    for (let i = 0; i < numBanks; i++) {
+                        const city = cities[i];
+                        agents.push({
+                            id: 1000 + i,
+                            type: 'bank',
+                            x: city[0] + Math.random() * 2 - 1,
+                            y: city[1] + Math.random() * 2 - 1,
+                            customers: Math.floor(Math.random() * 100) + 50
+                        });
+                    }
+                }
+                
+                // 经济指标
+                const unemployment = 0.05 + Math.sin(year * 2 * Math.PI / 8) * 0.02 + Math.random() * 0.01;
+                const gdp = 1000000000 * (1 + year * 0.03) * (1 + Math.sin(year * Math.PI / 4) * 0.1);
+                const inflation = 0.02 + Math.sin(year * Math.PI / 6) * 0.01 + Math.random() * 0.005;
+                
+                frames.push({
+                    day: day,
+                    year: year,
+                    agents: agents,
+                    metrics: {
+                        population: 20000,
+                        firms: numFirms,
+                        banks: Math.max(0, numBanks),
+                        gdp: gdp,
+                        unemployment: unemployment,
+                        inflation: inflation,
+                        policy_rate: Math.max(0, 0.025 + 1.5 * (inflation - 0.02))
+                    },
+                    events: []
+                });
+            }
+            
+            animationData = {
+                metadata: {
+                    total_frames: frames.length,
+                    population_size: 20000
+                },
+                terrain_map: generateTerrainMap(),
+                cities: [[15, 8], [35, 10], [55, 7], [25, 15], [45, 5]],
+                frames: frames
+            };
+            
+            document.getElementById('timelineSlider').max = frames.length - 1;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = false;
+        }
+        
+        function generateTerrainMap() {
+            const terrainMap = {};
+            
+            for (let y = 0; y < 20; y++) {
+                for (let x = 0; x < 80; x++) {
+                    let terrain;
+                    
+                    if (x < 3 || x > 76 || y < 1 || y > 18) {
+                        terrain = 'ocean';
+                    } else if (x > 65 && y > 15) {
+                        terrain = 'mountain';
+                    } else if (x >= 25 && x <= 35 && y >= 8 && y <= 12) {
+                        terrain = 'river';
+                    } else if ((x === 15 && y === 8) || (x === 35 && y === 10) || 
+                              (x === 55 && y === 7) || (x === 25 && y === 15) || (x === 45 && y === 5)) {
+                        terrain = 'city';
+                    } else {
+                        terrain = Math.random() < 0.7 ? 'plain' : (Math.random() < 0.5 ? 'hill' : 'forest');
+                    }
+                    
+                    terrainMap[`${x},${y}`] = terrain;
+                }
+            }
+            
+            return terrainMap;
+        }
+        
+        function showInitialSummary() {
+            const summary = `
+                📊 30年经济演化动画<br>
+                • 总帧数: ${animationData.frames.length}<br>
+                • 人口: ${animationData.metadata.population_size.toLocaleString()}<br>
+                • 最终企业: ${animationData.frames[animationData.frames.length-1].metrics.firms}<br>
+                • 最终银行: ${animationData.frames[animationData.frames.length-1].metrics.banks}<br>
+                <br>🎬 点击播放观看完整演化过程
+            `;
+            
+            document.getElementById('eventsLog').innerHTML = summary;
+        }
+        
+        function renderFrame(frameIndex) {
+            if (!animationData || frameIndex >= animationData.frames.length) return;
+            
+            const frame = animationData.frames[frameIndex];
+            currentFrame = frameIndex;
+            
+            // 清空画布
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制地形
+            drawTerrain();
+            
+            // 绘制代理
+            drawAgents(frame.agents);
+            
+            // 更新UI
+            updateMetrics(frame.metrics);
+            updateTimeDisplay(frame.year);
+            
+            // 更新时间轴
+            document.getElementById('timelineSlider').value = frameIndex;
+        }
+        
+        function drawTerrain() {
+            const scaleX = canvas.width / 80;
+            const scaleY = canvas.height / 20;
+            
+            // 绘制地形背景
+            for (let y = 0; y < 20; y++) {
+                for (let x = 0; x < 80; x++) {
+                    const terrain = animationData.terrain_map[`${x},${y}`] || 'plain';
+                    
+                    const colors = {
+                        'ocean': '#1e40af',
+                        'mountain': '#78716c', 
+                        'hill': '#a3a3a3',
+                        'plain': '#16a34a',
+                        'forest': '#166534',
+                        'city': '#f59e0b',
+                        'river': '#0ea5e9'
+                    };
+                    
+                    ctx.fillStyle = colors[terrain] || '#374151';
+                    ctx.fillRect(x * scaleX, y * scaleY, scaleX - 0.5, scaleY - 0.5);
+                }
+            }
+            
+            // 绘制城市标记
+            if (animationData.cities) {
+                animationData.cities.forEach(city => {
+                    const x = city[0] * scaleX;
+                    const y = city[1] * scaleY;
+                    
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillRect(x - 3, y - 3, 6, 6);
+                    
+                    // 城市名称
+                    ctx.fillStyle = 'white';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('🏙️', x + 5, y + 3);
+                });
+            }
+        }
+        
+        function drawAgents(agents) {
+            const scaleX = canvas.width / 80;
+            const scaleY = canvas.height / 20;
+            
+            // 按类型分组绘制
+            const agentsByType = {
+                'person': [],
+                'firm': [],
+                'bank': []
+            };
+            
+            agents.forEach(agent => {
+                if (agentsByType[agent.type]) {
+                    agentsByType[agent.type].push(agent);
+                }
+            });
+            
+            // 先绘制个人 (底层)
+            agentsByType.person.forEach(agent => {
+                const x = agent.x * scaleX;
+                const y = agent.y * scaleY;
+                
+                ctx.fillStyle = agent.employed ? '#4ade80' : '#ef4444';
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+            
+            // 绘制企业 (中层)
+            agentsByType.firm.forEach(agent => {
+                const x = agent.x * scaleX;
+                const y = agent.y * scaleY;
+                
+                ctx.fillStyle = '#3b82f6';
+                ctx.fillRect(x - 3, y - 3, 6, 6);
+                
+                // 显示企业ID
+                ctx.fillStyle = 'white';
+                ctx.font = '8px Arial';
+                ctx.fillText(agent.id.toString().slice(-2), x + 4, y + 2);
+            });
+            
+            // 绘制银行 (顶层)
+            agentsByType.bank.forEach(agent => {
+                const x = agent.x * scaleX;
+                const y = agent.y * scaleY;
+                
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.moveTo(x, y - 4);
+                ctx.lineTo(x - 3, y + 2);
+                ctx.lineTo(x + 3, y + 2);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 银行ID
+                ctx.fillStyle = 'white';
+                ctx.font = '8px Arial';
+                ctx.fillText('B' + agent.id.toString().slice(-1), x + 4, y + 2);
+            });
+        }
+        
+        function updateMetrics(metrics) {
+            document.getElementById('yearDisplay').textContent = Math.floor(metrics.year || 0);
+            document.getElementById('populationDisplay').textContent = (metrics.population || 20000).toLocaleString();
+            document.getElementById('firmsDisplay').textContent = metrics.firms || 0;
+            document.getElementById('banksDisplay').textContent = metrics.banks || 0;
+            document.getElementById('unemploymentDisplay').textContent = ((metrics.unemployment || 0.05) * 100).toFixed(1) + '%';
+            document.getElementById('gdpDisplay').textContent = ((metrics.gdp || 1000000000) / 1e9).toFixed(1) + 'B';
+        }
+        
+        function updateTimeDisplay(year) {
+            document.getElementById('currentTimeDisplay').textContent = `第${Math.floor(year || 0)}年`;
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('statusDisplay').textContent = message;
+        }
+        
+        // 动画控制
+        function playAnimation() {
+            if (!dataLoaded || isPlaying) return;
+            
+            isPlaying = true;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            
+            playInterval = setInterval(() => {
+                if (currentFrame < animationData.frames.length - 1) {
+                    currentFrame++;
+                    renderFrame(currentFrame);
+                    
+                    // 显示进度
+                    const progress = (currentFrame / (animationData.frames.length - 1)) * 100;
+                    updateStatus(`播放中 - 进度: ${progress.toFixed(1)}%`);
+                } else {
+                    pauseAnimation();
+                    updateStatus('✅ 动画播放完成 - 30年演化结束');
+                }
+            }, 1000 / playSpeed);
+        }
+        
+        function pauseAnimation() {
+            isPlaying = false;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            
+            if (playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+            }
+        }
+        
+        function resetAnimation() {
+            pauseAnimation();
+            currentFrame = 0;
+            renderFrame(0);
+            updateStatus('🔄 动画已重置到第1年');
+        }
+        
+        function jumpToYear() {
+            const year = prompt('跳转到第几年? (0-30)');
+            if (year && !isNaN(year) && dataLoaded) {
+                const targetYear = Math.max(0, Math.min(30, parseInt(year)));
+                const targetFrame = Math.floor((targetYear / 30) * (animationData.frames.length - 1));
+                
+                currentFrame = targetFrame;
+                renderFrame(currentFrame);
+                updateStatus(`⏭️ 已跳转到第${targetYear}年`);
+            }
+        }
+        
+        function jumpToFrame() {
+            if (!dataLoaded) return;
+            
+            const slider = document.getElementById('timelineSlider');
+            currentFrame = parseInt(slider.value);
+            renderFrame(currentFrame);
+            
+            const year = Math.floor((currentFrame / (animationData.frames.length - 1)) * 30);
+            updateStatus(`📍 手动跳转到第${year}年`);
+        }
+        
+        // 速度控制
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            playSpeed = parseInt(this.value);
+            document.getElementById('speedDisplay').textContent = playSpeed + 'x';
+            
+            if (isPlaying) {
+                pauseAnimation();
+                playAnimation();
+            }
+        });
+        
+        // 键盘控制
+        document.addEventListener('keydown', function(e) {
+            if (!dataLoaded) return;
+            
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    if (isPlaying) pauseAnimation(); else playAnimation();
+                    break;
+                case 'ArrowLeft':
+                    if (currentFrame > 0) {
+                        currentFrame--;
+                        renderFrame(currentFrame);
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (currentFrame < animationData.frames.length - 1) {
+                        currentFrame++;
+                        renderFrame(currentFrame);
+                    }
+                    break;
+                case 'KeyR':
+                    resetAnimation();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

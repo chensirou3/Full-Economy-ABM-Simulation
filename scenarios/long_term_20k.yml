@@ -1,0 +1,61 @@
+# 长期模拟场景 - 20,000人口30年
+description: "长期经济模拟场景 - 20,000人口，30年时间跨度，观察长期经济演化"
+
+world:
+  seed: 2024
+  grid:
+    rows: 80
+    cols: 80
+    cell_km: 2.0
+  generator:
+    sea_level: 0.50
+    mountain_ratio: 0.15
+    city_count: 12
+    road_density: 0.6
+    resource_richness: 1.0
+  consistency:
+    min_agri_output_per_capita: 1800
+    water_connectivity_check: true
+    road_connectivity_check: true
+
+population:
+  N: 20000
+  age_structure: "default"
+  min_subsistence:
+    food: 2200
+    other: 1.0
+  discount_beta: 0.96
+  risk_aversion: 0.7
+
+firms:
+  sectors: ["agri", "mining", "manu", "services"]
+  price_stickiness: 0.75
+  capital_depreciation: 0.06
+  markup_elasticity: 0.15
+
+banks:
+  capital_ratio_floor: 0.08
+  lgd: 0.45
+  pd_model: "default"
+  interbank_network: true
+
+policy:
+  pi_star: 0.02
+  r_star: 0.025
+  phi_pi: 1.5
+  phi_y: 0.5
+  phi_f: 0.3
+  committee_size: 7
+
+runtime:
+  mode: "fixed"
+  T_end_days: 10950  # 30年 (30 * 365)
+  checkpoint_every_days: 365  # 每年一个快照
+  render_fps: 30  # 降低渲染频率以提升性能
+  max_agents: 100000
+
+telemetry:
+  event_buffer_size: 20000
+  metrics_update_interval: 30  # 每30天更新一次指标
+  compress_snapshots: true
+  log_level: "INFO"
